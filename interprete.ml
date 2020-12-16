@@ -4,6 +4,7 @@ type tide = string;; (* "int" | "bool" | "string" *)
 
 type exp =
   | CstInt of int
+  | CstString of string
   | CstTrue
   | CstFalse
   | Eq of exp * exp
@@ -297,6 +298,7 @@ and map f s = let apl f v = (match f with
 and eval ex ev =
   match ex with
   | CstInt i -> Int(i)
+  | CstString s -> String(s)
   | CstTrue -> Bool(true)
   | CstFalse -> Bool(false)
   | Eq(e1, e2) -> int_eq((eval e1 ev), (eval e2 ev))

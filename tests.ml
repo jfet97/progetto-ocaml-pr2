@@ -103,3 +103,16 @@ eval (Filter(Fun("x", Eq(CstInt(10), Den("x"))), set6)) emptyEnv;;
 (* test dell'operatore funzionale Map *)
 eval (Map(Fun("x", Sum(CstInt(1), Den("x"))), set1)) emptyEnv;;
 eval (Map(Fun("x", Times(CstInt(10), Den("x"))), set2)) emptyEnv;;
+
+
+(* test vari ausiliari *)
+
+eval (Map(Fun("x", Times(CstInt(10), Den("x"))), Empty("int"))) emptyEnv;;
+eval (Filter(Fun("x", Eq(Sub(CstInt(10), Den("x")), CstInt(0))) , Empty("int"))) emptyEnv;;
+eval (Insert(Empty("string"), CstString("ciao"))) emptyEnv;;
+eval (Insert(Empty("bool"), CstTrue)) emptyEnv;;
+eval (Map(Fun("x", Ifthenelse(Eq(Sub(CstInt(10), Den("x")), CstInt(0)), CstTrue, CstFalse)),  Union(set1, Union(set2, set5)))) emptyEnv;;
+
+eval (Insert(Empty("string"), CstInt(9))) emptyEnv;; (* deve generare un errore *)
+eval (Map(Fun("x", Ifthenelse(Eq(Sub(CstInt(10), Den("x")), CstInt(0)), CstTrue, CstString("error"))),  Union(set1, Union(set2, set5)))) emptyEnv;; (* deve generare un errore *)
+
