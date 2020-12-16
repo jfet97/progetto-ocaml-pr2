@@ -8,6 +8,8 @@ let s1 = Singleton(CstInt(9), "int");;
 
 let r1 = Remove(s1, CstInt(9));;
 
+eval e1 emptyEnv;;
+
 eval s1 emptyEnv;;
 
 eval ie1 emptyEnv;;
