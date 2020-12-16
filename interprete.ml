@@ -48,7 +48,7 @@ type env = ide -> evT
 
 let emptyEnv = fun _ -> Unbound;;
 
-(* bind ritorna una funzione di lookup *)
+(* bind ritorna una funzione di lookup che funge da ambiente *)
 let bind (a: env) (li:ide) (lv:evT) = (fun i ->
   if li = i then lv
   else a i
@@ -80,26 +80,32 @@ let typecheck (x, y) = match x with
   | _ -> failwith ("not a valid type");;
 
 (* operazioni primitive eseguibili in fase di evaluation di una espressione *)
+
+(* uguaglianza tra interi *)
 let int_eq (x,y) =
   match (typecheck("int", x), typecheck("int", y), x, y) with
       | (true, true, Int(i), Int(j)) -> Bool(i = j)
       | (_, _, _, _) -> failwith("run-time error");;
 
+(* somma tra interi *)
 let int_plus (x,y) =
   match (typecheck("int", x), typecheck("int", y), x, y) with
       | (true, true, Int(i), Int(j)) -> Int(i + j)
       | (_, _, _, _) -> failwith("run-time error");;
 
+(* moltiplicazione tra interi *)
 let int_times (x,y) =
   match (typecheck("int", x), typecheck("int", y), x, y) with
       | (true, true, Int(i), Int(j)) -> Int(i * j)
       | (_, _, _, _) -> failwith("run-time error");;
 
+(* sottrazione tra interi *)
 let int_sub (x,y) =
   match (typecheck("int", x), typecheck("int", y), x, y) with
       | (true, true, Int(i), Int(j)) -> Int(i - j)
       | (_, _, _, _) -> failwith("run-time error");;
 
+(* funzione ausiliaria per verificare l'uguaglianza tra i tipi di due entita' *)
 let set_eq v1 v2 =
   match v1 with
     | Int (i1) ->
@@ -116,6 +122,7 @@ let set_eq v1 v2 =
           | _ -> false)
     | _ -> false;;
 
+(* controlla ricorsivamente se il set s contiene l'elemento v *)
 let rec contains s v =
   match (typecheck("set", s), s) with
       | (true, Set(st, (seth::sett))) ->
@@ -128,6 +135,7 @@ let rec contains s v =
           | (_, _) -> failwith("contains set type error"))
       | (_, _) -> failwith("contains set type error");;
 
+(* controlla ricorsivamente se ogni elemento presente nel set s1 è contenuto all'interno del set s2 *)
 let rec containsAll s1 s2 =
   match (typecheck("set", s1), typecheck("set", s2), s1, s2) with
       | (true, true, Set(st1, (seth1::sett1)), Set(st2, _)) ->
@@ -136,6 +144,7 @@ let rec containsAll s1 s2 =
           (if st1 = st2 then true else failwith("containsAll set type error"))
       | (_, _, _, _) -> failwith("containsAll set type error");;
 
+(* inserisce l'elemento v nel set s *)
 let insert s v =
   match (typecheck("set", s), s) with
       | (true, Set(st, set)) ->
@@ -144,6 +153,7 @@ let insert s v =
           | (_, _) -> failwith("insert set type error"))
       | (_, _) -> failwith("insert set type error");;
 
+(* rimuove l'elemento v dal set s *)
 let rec remove s v =
   match (typecheck("set", s), s) with
       | (true, Set(st, (seth::sett))) ->
@@ -156,11 +166,13 @@ let rec remove s v =
           | (_, _) -> failwith("remove set type error"))
       | (_, _) -> failwith("remove set type error");;
 
+(* restituisce true se s è un set vuoto, altrimenti false *)
 let is_empty s =
   match (typecheck("set", s), s) with
       | (true, Set(st, set)) -> List.length set = 0
       | (_, _) -> failwith("is_empty set type error");;
 
+(* se s non è vuoto restituisce il minore tra i suoi elementi *)
 let min s =
   match s with
       | [] -> failwith("min set type error")
@@ -170,6 +182,7 @@ let min s =
           | (seth::sett) -> min_i sett (if seth < m then seth else m)
         ) in min_i st sh;;
 
+(* se s non è vuoto restituisce il maggiore tra i suoi elementi *)
 let max s =
   match s with
       | [] -> failwith("max set type error")
@@ -179,18 +192,22 @@ let max s =
           | (seth::sett) -> max_i sett (if seth > m then seth else m)
         ) in max_i st sh;;
 
+(* funzione ausiliaria che rimuove i duplicati da una lista  *)
+let remove_duplicates ls = List.fold_left (fun l v -> if List.mem v l then l else v::l) [] ls;;
 
-let remove_duplicates ls = List.fold_right (fun v l -> if List.mem v l then l else v::l) ls [];;
+(* funzione ausiliaria che unisce due liste rimuovendo eventuali duplicati *)
+let union l1 l2 = remove_duplicates (List.append l2 l1);;
 
-let union l1 l2 = remove_duplicates (List.append l1 l2);;
+(* funzione ausiliaria che ricava l'intersezione tra due liste *)
+let intersection l1 l2 = List.fold_left (fun l v -> if List.mem v l2 then v::l else l) [] l1;;
 
-let intersection l1 l2 = List.fold_right (fun v l -> if List.mem v l2 then v::l else l) l1 [];;
+(* funzione ausiliaria che restituisce una lista contenente tutti gli elementi presenti in l1 che NON sono anche presenti in l2 *)
+let difference l1 l2 = List.fold_left (fun l v -> if List.mem v l2 then l else v::l) [] l1;;
 
-(* l1 \ l2 *)
-let difference l1 l2 = List.fold_right (fun v l -> if List.mem v l2 then l else v::l) l1 [];;
-
+(* funzione ricorsiva per la valutazione di espressioni For_all *)
 let rec for_all f s = match s with
   | [] -> true
+  (* cr è il risultato dell'evaluation dell'applicazione di f sul valore corrente sh *)
   | (sh::st) -> (let cr = (match f with
     | Closure(fp, b, cev) ->
       let aev = bind cev fp sh in
@@ -198,13 +215,21 @@ let rec for_all f s = match s with
     | RecClosure(rn, rfp, rb, rcev) ->
       let raev = bind (bind rcev rfp sh) rn f in
       eval rb raev
+    (* f deve essere una funzione *)
     | _ -> failwith("for_all set type error"))
         in (
+          (* br sarà il risultato della corrente chiamata a for_all *)
           let br = (match cr with
+          (* cr deve essere un booleano *)
           | Bool(b) -> b
+          (* affinché il risultato della chiamata corrente a for_all sia true
+             deve essere true sia f(sh) che for_all sul resto della lista *)
           | _ -> failwith("for_all set type error")) in br && (for_all f st)))
+(**)
+(* funzione ricorsiva per la valutazione di espressioni Exists *)
 and exists f s = match s with
 | [] -> false
+  (* cr è il risultato dell'evaluation dell'applicazione di f sul valore corrente sh *)
 | (sh::st) -> (let cr = (match f with
   | Closure(fp, b, cev) ->
     let aev = bind cev fp sh in
@@ -212,13 +237,21 @@ and exists f s = match s with
   | RecClosure(rn, rfp, rb, rcev) ->
     let raev = bind (bind rcev rfp sh) rn f in
     eval rb raev
+  (* f deve essere una funzione *)
   | _ -> failwith("exists set type error"))
       in (
+        (* br sarà il risultato della corrente chiamata a exists *)
         let br = (match cr with
+        (* cr deve essere un booleano *)
         | Bool(b) -> b
+        (* affinché il risultato della chiamata corrente a exists sia true
+            deve essere true o f(sh) o exists sul resto della lista *)
         | _ -> failwith("exists set type error")) in br || (exists f st)))
+(**)
+(* funzione ricorsiva per la valutazione di espressioni Filter *)
 and filter f s = match s with
 | [] -> []
+  (* cr è il risultato dell'evaluation dell'applicazione di f sul valore corrente sh *)
 | (sh::st) -> (let cr = (match f with
   | Closure(fp, b, cev) ->
     let aev = bind cev fp sh in
@@ -226,27 +259,40 @@ and filter f s = match s with
   | RecClosure(rn, rfp, rb, rcev) ->
     let raev = bind (bind rcev rfp sh) rn f in
     eval rb raev
+  (* f deve essere una funzione *)
   | _ -> failwith("filter set type error"))
       in (
+        (* br sarà il risultato della corrente chiamata a filter *)
         let br = (match cr with
+        (* cr deve essere un booleano *)
         | Bool(b) -> b
+        (* l'operazione di filtraggio viene eseguita ricorsivamente sul resto della lista *)
         | _ -> failwith("filter set type error")) in if br then sh::(filter f st) else (filter f st)))
-and map f s = match s with
-| [] -> []
-| (sh::st) -> (let cr = (match f with
-  | Closure(fp, b, cev) ->
-    let aev = bind cev fp sh in
-    eval b aev
-  | RecClosure(rn, rfp, rb, rcev) ->
-    let raev = bind (bind rcev rfp sh) rn f in
-    eval rb raev
-  | _ -> failwith("map set type error"))
-      in (
-        let _ = (match cr with
-        | Bool(b) -> Bool(b)
-        | Int(i) -> Int(i)
-        | String(s) -> String(s)
-        | _ -> failwith("map set type error")) in cr::(map f st)))
+(**)
+(* funzione ricorsiva per la valutazione di espressioni Map *)
+and map f s = let apl f v = (match f with
+(* cr è il risultato dell'evaluation dell'applicazione di f sul valore corrente sh *)
+| Closure(fp, b, cev) ->
+  let aev = bind cev fp v in
+  eval b aev
+| RecClosure(rn, rfp, rb, rcev) ->
+  let raev = bind (bind rcev rfp v) rn f in
+  eval rb raev
+(* f deve essere una funzione *)
+| _ -> failwith("map set type error")) in (match s with
+  | [] -> failwith("map set type error")
+  (* cr è il risultato dell'evaluation dell'applicazione di f sul valore corrente sh *)
+  | (sh::[]) -> let cr = apl f sh in (match cr with
+    (* la creazione del set destinazione viene eseguita a partire dall'ultimo elemento
+      in modo tale che si possa sfruttare agilmente il controllo della insert affinché
+      il set destinazione sia omogeneo*)
+      | Bool(b) -> Set("bool", [cr])
+      | Int(i) -> Set("int", [cr])
+      | String(s) -> Set("string", [cr])
+      | _ -> failwith("map set type error"))
+  (* l'operazione di mapping viene eseguita ricorsivamente sul resto della lista *)
+  | (sh::st) -> insert (map f st) (apl f sh))
+(**)
 (* interprete *)
 and eval ex ev =
   match ex with
@@ -348,5 +394,9 @@ and eval ex ev =
     let f = eval fe ev in
     let s = eval se ev in
       (match (typecheck("function", f), typecheck("set", s), f, s) with
-        | (true, true, _, Set(st, set)) -> Set(st, (map f set))
+        | (true, true, _, Set(st, set)) -> (match set with
+          (* nel caso in cui l'insieme da mappare sia vuoto, un nuovo insieme vuoto del
+             medesimo tipo dell'insieme originale viene generato *)
+          | [] -> Set(st, [])
+          | _ -> (map f set))
         | (_,_,_,_) -> failwith("Map set type error"));;
